@@ -243,6 +243,47 @@ def ligate_font(
     # For logging purposes
     sys.stderr.write("====\n")
 
+    # Apply frozen stylistic sets BEFORE adding ligatures (make them permanent)
+    if "frozen_features" in config:
+        for feature_name in config["frozen_features"]:
+            print(f"    · Freezing feature '{feature_name}' to always on")
+            # Find lookups for this feature and apply substitutions permanently
+            for lookup_name in font.gsub_lookups:
+                lookup_info = font.getLookupInfo(lookup_name)
+                if lookup_info and len(lookup_info) > 2 and lookup_info[2]:
+                    # lookup_info[2] contains tuple of (feature, script, lang)
+                    feature_tags = [f[0] for f in lookup_info[2]]
+                    if feature_name in feature_tags:
+                        print(f"      · Found lookup '{lookup_name}' for feature '{feature_name}'")
+                        # Get all subtables for this lookup
+                        for subtable_name in font.getLookupSubtables(lookup_name):
+                            # Collect all substitutions to apply
+                            substitutions = []
+                            for glyph in font.glyphs():
+                                try:
+                                    pos_sub = glyph.getPosSub(subtable_name)
+                                    if pos_sub:
+                                        for item in pos_sub:
+                                            if item[1] == 'Substitution':
+                                                target = item[2]
+                                                if target in font:
+                                                    substitutions.append((glyph.glyphname, target))
+                                except:
+                                    pass
+                            
+                            # Apply the substitutions by copying alternate glyph over base
+                            for base_glyph_name, alt_glyph_name in substitutions:
+                                if base_glyph_name in font and alt_glyph_name in font:
+                                    print(f"        · Permanently replacing '{base_glyph_name}' with '{alt_glyph_name}'")
+                                    # Copy the alternate glyph over the base glyph
+                                    font.selection.none()
+                                    font.selection.select(alt_glyph_name)
+                                    font.copy()
+                                    font.selection.none()
+                                    font.selection.select(base_glyph_name)
+                                    font.pasteInto()
+                                    font[base_glyph_name].width = font[alt_glyph_name].width
+
     if remove_original_ligatures:
         for look in font.gsub_lookups:
             font.removeLookup(look, 1)

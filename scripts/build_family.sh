@@ -67,7 +67,7 @@ build_family() {
         fi
         total=${#filtered_files[@]}
         setup_scroll_area "$total"
-        F_INPUT_DIR="$(python -c "import py.utils as u; print(u.relative_from_project(\"$INPUT_DIR\"))")"
+        F_INPUT_DIR="$(python3 -c "import py.utils as u; print(u.relative_from_project(\"$INPUT_DIR\"))" 2>/dev/null || echo "$INPUT_DIR")"
         printf "\nFound %d fonts from %s directory to be ligated ✨\n" "$total" "$F_INPUT_DIR"
         for ((k = 0; k < total ; k++)); do
             draw_progress_bar "$k"
@@ -81,31 +81,29 @@ build_family() {
             else
                 LIGATURE=""
             fi
-            local attempt=1
-            while (( $(find "$OUTPUT_DIR" -regex ".+\.\(otf\|ttf\)" -type f | wc -l) <= k )); do
-                echo ""
-                if (( attempt > 1 )); then
-                    echo -e "Fontforge has a bad day... attempt #$attempt\n"
-                fi
-                ERROR=$(eval "python ligate.py '$file' \
-                                --output-dir '$OUTPUT_DIR'" \
-                                "$LIGATURE" "$ARGS" 3>&1 1>&2 2>&3)
-                if [[ -n "$ERROR" ]]; then
-                    mkdir -p "logs/$INPUT_DIR"
-                    LOG="logs/$b.$EXT.log"
-                    insert_top "" "$LOG"
-                    insert_top "$ERROR" "$LOG"
-                    insert_top "[$(date -R)]" "$LOG"
-                fi
-                # shellcheck disable=SC2126
-                ERROR_COUNT=$(echo -n "$ERROR" | grep -A1 '====' | wc -l)
-                if (( ERROR_COUNT > 1)); then
-                    printf "\n \033[0;31m✗\033[0m There are some errors saved at %s\n" "$LOG"
-                else 
-                    echo -e "\n \033[0;32m✓\033[0m Font ligated"
-                fi
-                ((attempt=attempt+1))
-            done
+            # Run once without retry loop to see errors immediately
+            echo ""
+            echo "Processing $file..."
+            ERROR=$(eval "python3 ligate.py '$file' \
+                            --output-dir '$OUTPUT_DIR'" \
+                            "$LIGATURE" "$ARGS" 3>&1 1>&2 2>&3)
+            if [[ -n "$ERROR" ]]; then
+                mkdir -p "logs/$INPUT_DIR"
+                LOG="logs/$b.$EXT.log"
+                insert_top "" "$LOG"
+                insert_top "$ERROR" "$LOG"
+                insert_top "[$(date -R)]" "$LOG"
+                echo "$ERROR"
+            fi
+            # shellcheck disable=SC2126
+            ERROR_COUNT=$(echo -n "$ERROR" | grep -A1 '====' | wc -l)
+            if (( ERROR_COUNT > 1)); then
+                printf "\n \033[0;31m✗\033[0m There are some errors saved at %s\n" "$LOG"
+                echo "Stopping due to error. Check the log file above."
+                exit 1
+            else 
+                echo -e "\n \033[0;32m✓\033[0m Font ligated"
+            fi
 
             # Add font data to the Font Tester .html page
             OUTPUT_FILE=$(ls -Art "$OUTPUT_DIR" | tail -n 1)
@@ -113,8 +111,8 @@ build_family() {
             POST=$(fc-scan "$COMPL_OUT_FILE" -f "%{postscriptname}")
             FULL=$(fc-scan "$COMPL_OUT_FILE" -f "%{fullname}")
             CSS_WEIGHT=${CSS_WEIGHTS[$(fc-scan "$COMPL_OUT_FILE" -f "%{weight}")]}
-            REL_IFILE="$(python -c "import py.utils as u; print(u.relative_from_project(\"$file\"))")"
-            REL_OFILE="$(python -c "import py.utils as u; print(u.relative_from_project(\"$COMPL_OUT_FILE\"))")"
+            REL_IFILE="$(python3 -c "import py.utils as u; print(u.relative_from_project(\"$file\"))" 2>/dev/null || echo "$file")"
+            REL_OFILE="$(python3 -c "import py.utils as u; print(u.relative_from_project(\"$COMPL_OUT_FILE\"))" 2>/dev/null || echo "$COMPL_OUT_FILE")"
             echo -e "<option value=\"$CSS_WEIGHT 16px '$POST'\">$FULL</option>" \
                 >> "test/fonts.html"
 
