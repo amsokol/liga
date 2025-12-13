@@ -82,7 +82,8 @@ build_family() {
                 LIGATURE=""
             fi
             local attempt=1
-            while (( $(find "$OUTPUT_DIR" -regex ".+\.\(otf\|ttf\)" -type f | wc -l) <= k )); do
+            while (( $(find "$OUTPUT_DIR" -type f \( -name "*.otf" -o -name "*.ttf" \) | wc -l) <= k )); do
+                echo "$OUTPUT_DIR"
                 echo ""
                 if (( attempt > 1 )); then
                     echo -e "Fontforge has a bad day... attempt #$attempt\n"

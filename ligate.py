@@ -53,7 +53,7 @@ def write_fira_feature_file(feats, output_file, firacode, font):
                     and font.__contains__(firacode[i[1:]].unicode),
                     [
                         ("\\" + cl if cl[0] != "@" else cl)
-                        for cl in re.sub("\s+", " ", _class.code).split(" ")
+                        for cl in re.sub(r"\s+", " ", _class.code).split(" ")
                     ],
                 )
             )
